@@ -70,7 +70,10 @@ import { useAuthStore } from '@/stores/auth';
 import { computed, watch, getCurrentInstance } from 'vue';
 import axios from 'axios';
 import { loadCategoryRoutes } from '@/router/index.js';
+import { useRoute, useRouter } from 'vue-router';
 
+const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
 const { $http } = getCurrentInstance().appContext.config.globalProperties;
 
@@ -82,8 +85,10 @@ const expandedCategories = ref({});
 const showCategories = computed(() => authStore.isAuthenticated)
 
 const fetchCategories = async () => {
-    if (!authStore.isAuthenticated) return
+    if (!authStore.isAuthenticated) return;
     try {
+        // 先加载路由
+        await loadCategoryRoutes();
         const response = await axios.get('/category');
         categories.value = response.data.data.map(cat => ({
             ...cat,
@@ -91,8 +96,28 @@ const fetchCategories = async () => {
             meta: { title: cat.name, icon: '📁' },
         }));
         initExpandedState();
+
+        // 检查当前路由是否存在，如果不存在则重定向
+        checkCurrentRoute();
+        router.push(route.path);
     } catch (error) {
         console.error('获取分类失败:', error);
+    }
+};
+
+const checkCurrentRoute = () => {
+    const currentPath = route.path;
+    const matchedRoute = router.resolve(currentPath);
+
+    // 如果当前路由匹配不到，尝试重新加载后重定向
+    if (matchedRoute.matched.length === 0 && currentPath !== '/') {
+        // 重新加载路由后重定向
+        loadCategoryRoutes().then(() => {
+            router.push(currentPath).catch(() => {
+                // 如果还是失败，重定向到首页
+                router.push('/');
+            });
+        });
     }
 };
 
@@ -100,6 +125,16 @@ const initExpandedState = () => {
     categories.value.forEach(category => {
         expandedCategories.value[category.name] = false;
     });
+
+    // 根据当前路由展开对应的分类
+    const currentPath = route.path;
+    if (currentPath && currentPath !== '/') {
+        const pathParts = currentPath.split('/');
+        if (pathParts.length > 1) {
+            const categoryName = decodeURIComponent(pathParts[1]);
+            expandedCategories.value[categoryName] = true;
+        }
+    }
 };
 
 const createNewCategory = async () => {
@@ -107,8 +142,8 @@ const createNewCategory = async () => {
         const response = await axios.post('/category', { name: newCategory.value.name });
         if (response.data.code === 200) {
             alert('分类创建成功');
-            await fetchCategories();
             await loadCategoryRoutes();
+            await fetchCategories();
         } else {
             alert('分类创建失败');
         }
@@ -124,11 +159,21 @@ const createNewCategory = async () => {
 const toggleCategory = (category) => {
     expandedCategories.value[category] = !expandedCategories.value[category];
 };
+// 监听路由变化
+watch(() => route.path, (newPath) => {
+    if (newPath && newPath !== '/') {
+        const pathParts = newPath.split('/');
+        if (pathParts.length > 1) {
+            const categoryName = decodeURIComponent(pathParts[1]);
+            expandedCategories.value[categoryName] = true;
+        }
+    }
+});
+
 // 监听登录状态变化
 watch(() => authStore.isAuthenticated, async (isAuth) => {
     if (isAuth) {
         await fetchCategories();
-        await loadCategoryRoutes();
     }
 });
 
@@ -136,10 +181,8 @@ watch(() => authStore.isAuthenticated, async (isAuth) => {
 onMounted(async () => {
     if (authStore.isAuthenticated) {
         await fetchCategories();
-        await loadCategoryRoutes();
     }
 });
-//这里为什么要两次进行fetchCategories()
 </script>
 
 <style lang="less" scoped>
@@ -154,6 +197,9 @@ onMounted(async () => {
     top: 0;
     padding: 12px 0;
     transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
 
     .logo {
         color: #42b983;
@@ -161,11 +207,35 @@ onMounted(async () => {
         text-align: center;
         padding-bottom: 40px;
         font-weight: bold;
+        flex-shrink: 0;
     }
 
     .nav-links {
         list-style: none;
         padding: 0;
+        overflow-y: auto; // 只保留垂直滚动
+        overflow-x: hidden; // 隐藏水平滚动
+        flex-grow: 1; // 占据剩余空间
+        max-height: calc(100vh - 100px); // 减去logo和padding的高度
+
+        // 自定义滚动条样式
+        &::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        &::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+        }
 
         li {
             margin: 5px 0;

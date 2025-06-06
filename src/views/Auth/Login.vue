@@ -26,7 +26,6 @@
                     </button>
 
                     <div class="login-footer">
-                        <router-link to="/forgot-password" class="forgot-password">忘记密码?</router-link>
                         <span>还没有账号? <router-link to="/register" class="register-link">立即注册</router-link></span>
                     </div>
                 </form>

@@ -98,8 +98,11 @@ export const useAuthStore = defineStore('auth', {
             this.user = null
             this.token = null
             this.isAuthenticated = false
-            localStorage.removeItem('token')
-            localStorage.removeItem('user')
+            this.routesLoaded = false
+            // 清除 sessionStorage
+            sessionStorage.removeItem('token')
+            sessionStorage.removeItem('user')
+            // 跳转到登录页
             router.push('/login')
         },
         setRoutesLoaded(status) {

@@ -80,8 +80,6 @@ export const loadCategoryRoutes = async () => {
         ]
       });
     });
-
-    console.log('当前路由表:', router.getRoutes());
   } catch (error) {
     console.error('加载分类路由失败:', error);
   }
