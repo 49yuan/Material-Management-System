@@ -1,30 +1,57 @@
 <template>
-  <nav>
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link>
-  </nav>
-  <router-view/>
+  <div id="app">
+    <AppHeader v-if="!isAuthPage" />
+    <div class="app-container">
+      <Sidebar v-if="!isAuthPage" />
+      <main class="main-content" :class="{ 'full-screen': isAuthPage }">
+        <router-view />
+      </main>
+    </div>
+  </div>
 </template>
+
+<script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import AppHeader from '@/components/AppHeader.vue'
+import Sidebar from '@/components/Sidebar.vue'
+
+const route = useRoute()
+const authStore = useAuthStore()
+
+const isAuthPage = computed(() => {
+  return ['Login', 'Register', 'ResetPassword'].includes(route.name)
+})
+</script>
 
 <style lang="less">
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-align: center;
   color: #2c3e50;
+  display: flex;
+  flex-direction: column;
 }
 
-nav {
-  padding: 30px;
+.app-container {
+  display: flex;
+  flex: 1;
+}
 
-  a {
-    font-weight: bold;
-    color: #2c3e50;
+.main-content {
+  flex: 1;
+  margin-top: 60px;
+  margin-left: 250px;
+  padding: 20px;
+}
 
-    &.router-link-exact-active {
-      color: #42b983;
-    }
-  }
+.main-content.full-screen {
+  margin-top: 0;
+  margin-left: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
 }
 </style>
