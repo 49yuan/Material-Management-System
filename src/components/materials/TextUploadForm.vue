@@ -94,6 +94,12 @@ const handleFileChange = (e) => {
     }
 
     file.value = selectedFile;
+
+    // 仅当用户还没有填写文件名时，使用文件名作为默认值
+    if (!articleName.value.trim()) {
+        const rawName = selectedFile.name.replace(/\.[^/.]+$/, '') // 去除扩展名
+        articleName.value = rawName
+    }
 };
 
 const removeFile = () => {

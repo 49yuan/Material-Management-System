@@ -43,6 +43,7 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 
+
 // 修改密码导航
 const navigateToResetPassword = () => {
     router.push('/resetPassword')

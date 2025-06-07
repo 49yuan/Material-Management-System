@@ -1,6 +1,6 @@
 <template>
     <div class="sidebar">
-        <div class="logo">素材系统</div>
+        <div class="logo">D02装备</div>
         <ul class="nav-links">
             <!-- 动态加载分类 -->
             <li v-for="category in categories" :key="category.name" class="category-item">
@@ -104,6 +104,7 @@ const fetchCategories = async () => {
         console.error('获取分类失败:', error);
     }
 };
+
 const checkCurrentRoute = () => {
     const currentPath = route.path;
     const matchedRoute = router.resolve(currentPath);
@@ -119,6 +120,7 @@ const checkCurrentRoute = () => {
         });
     }
 };
+
 const initExpandedState = () => {
     categories.value.forEach(category => {
         expandedCategories.value[category.name] = false;
@@ -134,6 +136,7 @@ const initExpandedState = () => {
         }
     }
 };
+
 const createNewCategory = async () => {
     try {
         const response = await axios.post('/category', { name: newCategory.value.name });

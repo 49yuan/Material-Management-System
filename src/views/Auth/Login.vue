@@ -2,14 +2,14 @@
     <div class="login-page">
         <div class="login-container animate__animated animate__fadeIn">
             <div class="login-header">
-                <h1 class="title">素材管理系统</h1>
+                <h1 class="title">D02装备</h1>
                 <p class="subtitle">高效管理您的数字资产</p>
             </div>
 
             <div class="login-card animate__animated animate__fadeInUp">
                 <form @submit.prevent="handleLogin">
                     <div class="form-group">
-                        <label for="workNumber">工号</label>
+                        <label for="workNumber">用户名</label>
                         <input id="workNumber" v-model="workNumber" type="text" placeholder="请输入工号" required
                             class="input-field">
                     </div>

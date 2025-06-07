@@ -41,7 +41,14 @@ const isValid = computed(() => {
 });
 
 const handleFileChange = (e) => {
-    file.value = e.target.files[0];
+    const selectedFile = e.target.files[0]
+    file.value = selectedFile
+
+    // 仅当用户还没有填写音频名时，使用文件名作为默认值
+    if (!audioName.value.trim()) {
+        const rawName = selectedFile.name.replace(/\.[^/.]+$/, '') // 去除扩展名
+        audioName.value = rawName
+    }
 };
 
 const handleSubmit = () => {
