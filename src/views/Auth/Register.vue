@@ -99,7 +99,7 @@ const handleRegister = async () => {
             ElMessage.error(response.data.msg)
         }
     } catch (error) {
-        ElMessage.error(response.data.msg)
+        ElMessage.error(error.message)
     } finally {
         loading.value = false
     }

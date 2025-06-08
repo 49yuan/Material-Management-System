@@ -1,6 +1,6 @@
 <template>
     <div class="search-bar">
-        <input type="text" v-model="inputValue" placeholder="搜索图片标签..." @input="handleInput" />
+        <input type="text" v-model="inputValue" placeholder="搜索内容..." @input="handleInput" />
         <button @click="handleSearch">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18">
                 <path

@@ -45,6 +45,7 @@ import { ElMessage } from 'element-plus'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import axios from 'axios'
 import 'animate.css'
 
 const authStore = useAuthStore()
