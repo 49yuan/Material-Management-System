@@ -6,7 +6,7 @@
             </div>
             <div class="confirm-dialog-body">
                 <p>{{ message }}</p>
-                <slot name="extra"></slot>
+                <!-- <slot name="extra"></slot> -->
             </div>
             <div class="confirm-dialog-footer">
                 <button class="confirm-button" @click="confirm">确认</button>
