@@ -9,8 +9,8 @@
             </button>
         </div>
 
-        <ImageUploadForm v-if="showUploadForm" @submit="handleUpload" @cancel="showUploadForm = false"
-            :categoryId="props.categoryId" />
+        <ImageUploadForm v-if="showUploadForm" @submit="handleUpload" @batch-submit="handleBatchUpload"
+            @cancel="showUploadForm = false" :categoryId="props.categoryId" />
 
         <div class="image-grid">
             <ImageCard v-for="image in paginatedImages" :key="image.id" :image-url="image.url" :image-name="image.name"
@@ -151,6 +151,60 @@ const handleUpload = async (formData) => {
         loading.close();  // 无论成功失败，关闭加载状态
     }
 };
+
+const handleBatchUpload = async (files) => {
+    const loading = ElLoading.service({
+        lock: true,
+        text: `正在上传 ${files.length} 张图片，请稍候...`,
+        background: 'rgba(0, 0, 0, 0.7)'
+    });
+
+    try {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const file of files) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file.file);
+                formData.append('name', file.name);
+                formData.append('category_id', props.categoryId);
+                formData.append('type', 'image');
+
+                const response = await axios.post('/resource', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                if (response.data.code === 200) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    ElMessage.warning(`文件 ${file.name} 上传失败: ${response.data.msg}`);
+                }
+            } catch (error) {
+                failCount++;
+                const errorMsg = error.response?.data?.message || error.message;
+                ElMessage.warning(`文件 ${file.name} 上传出错: ${errorMsg}`);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        if (failCount === 0) {
+            ElMessage.success(`全部 ${successCount} 张图片上传成功！`);
+        } else {
+            ElMessage.warning(`上传完成，成功 ${successCount} 张，失败 ${failCount} 张`);
+        }
+
+        await fetchImages(); // 刷新数据
+    } catch (error) {
+        ElMessage.error(`批量上传出错: ${error.message}`);
+    } finally {
+        loading.close();
+    }
+}
 // 编辑图片
 const handleEditImage = async (id, newData) => {
     return new Promise(async (resolve, reject) => {
