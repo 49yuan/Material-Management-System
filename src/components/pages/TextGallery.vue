@@ -76,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { ElLoading, ElMessage } from 'element-plus';
 import axios from 'axios';
@@ -302,6 +302,13 @@ const handleDeleteConfirm = async () => {
         loading.close();
     }
 };
+watch(() => props.categoryId, async () => {
+    await fetchTexts();
+    // 重置分页和筛选状态
+    currentPage.value = 1;
+    activeCategory.value = '全部';
+    searchQuery.value = '';
+}, { immediate: true });
 
 // 初始化
 onMounted(fetchTexts);

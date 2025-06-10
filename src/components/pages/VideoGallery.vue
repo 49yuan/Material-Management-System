@@ -22,7 +22,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { ElLoading, ElMessage } from 'element-plus';
 import axios from 'axios';
@@ -205,6 +205,13 @@ const handleDeleteVideo = async (id) => {
         loading.close();
     }
 };
+watch(() => props.categoryId, async () => {
+    await fetchVideos();
+    // 重置分页和筛选状态
+    currentPage.value = 1;
+    activeCategory.value = '全部';
+    searchQuery.value = '';
+}, { immediate: true });
 
 // 初始化
 onMounted(fetchVideos);

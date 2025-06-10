@@ -9,7 +9,8 @@
             </button>
         </div>
 
-        <ImageUploadForm v-if="showUploadForm" @submit="handleUpload" @cancel="showUploadForm = false" />
+        <ImageUploadForm v-if="showUploadForm" @submit="handleUpload" @cancel="showUploadForm = false"
+            :categoryId="props.categoryId" />
 
         <div class="image-grid">
             <ImageCard v-for="image in paginatedImages" :key="image.id" :image-url="image.url" :image-name="image.name"
@@ -22,7 +23,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { ElLoading, ElMessage } from 'element-plus';
 import axios from 'axios';
@@ -204,6 +205,14 @@ const handleDeleteImage = async (id) => {
         loading.close();
     }
 };
+watch(() => props.categoryId, async (newVal, oldVal) => {
+    await fetchImages();
+    // 重置分页和筛选状态
+    currentPage.value = 1;
+    activeCategory.value = '全部';
+    searchQuery.value = '';
+}, { immediate: true });
+
 // 初始化
 onMounted(fetchImages);
 </script>
