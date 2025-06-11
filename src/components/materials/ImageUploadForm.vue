@@ -3,12 +3,12 @@
         <div class="upload-form">
             <h3>{{ isBatchMode ? '批量上传图片' : '上传图片' }}</h3>
 
-            <!-- <div v-if="!isBatchMode" class="upload-mode-toggle">
+            <div v-if="!isBatchMode" class="upload-mode-toggle">
                 <button @click="isBatchMode = true">切换到批量上传</button>
             </div>
             <div v-else class="upload-mode-toggle">
                 <button @click="isBatchMode = false">切换到单文件上传</button>
-            </div> -->
+            </div>
 
             <!-- 单文件上传表单 -->
             <form v-if="!isBatchMode" @submit.prevent="handleSubmit">
@@ -43,11 +43,6 @@
 
                 <div class="batch-preview" v-if="batchFiles.length > 0">
                     <h4>已选择 {{ batchFiles.length }} 张图片</h4>
-                    <div class="pagination-controls">
-                        <button @click="prevPage" :disabled="currentPage === 1">上一页</button>
-                        <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-                        <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
-                    </div>
 
                     <div class="file-list">
                         <div v-for="(file, index) in paginatedFiles" :key="index" class="file-item">
@@ -55,6 +50,11 @@
                             <div class="file-name">{{ file.name }}</div>
                             <div class="file-size">{{ formatFileSize(file.size) }}</div>
                         </div>
+                    </div>
+                    <div class="pagination-controls">
+                        <button @click="prevPage" :disabled="currentPage === 1">上一页</button>
+                        <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
+                        <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
                     </div>
                 </div>
 
@@ -187,63 +187,17 @@ const nextPage = () => {
     }
 }
 
-const handleBatchSubmit = async () => {
-    const loading = ElLoading.service({
-        lock: true,
-        text: `正在上传 ${batchFiles.value.length} 张图片，请稍候...`,
-        background: 'rgba(0, 0, 0, 0.7)'
-    })
+const handleBatchSubmit = () => {
+    // 将文件数据传递给父组件处理
+    emit('batch-submit', batchFiles.value.map(item => ({
+        file: item.file,
+        name: item.name
+    })));
 
-    try {
-        let successCount = 0;
-        let failCount = 0;
-
-        for (const item of batchFiles.value) {
-            try {
-                const formData = new FormData();
-                formData.append('file', item.file);
-                formData.append('name', item.name);
-                formData.append('category_id', props.categoryId);
-                formData.append('type', 'image');
-
-                const response = await axios.post('/resource', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    },
-                    timeout: 30000
-                });
-
-                if (response.data.code === 200) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    ElMessage.warning(`文件 ${item.name} 上传失败: ${response.data.msg}`);
-                }
-            } catch (error) {
-                failCount++;
-                const errorMsg = error.response?.data?.message || error.message;
-                ElMessage.warning(`文件 ${item.name} 上传出错: ${errorMsg}`);
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-
-        if (failCount === 0) {
-            ElMessage.success(`全部 ${successCount} 张图片上传成功！`);
-        } else {
-            ElMessage.warning(`上传完成，成功 ${successCount} 张，失败 ${failCount} 张`);
-        }
-
-        batchFiles.value = [];
-        if (batchFileInput.value) {
-            batchFileInput.value.value = '';
-        }
-
-        emit('submit');
-    } catch (error) {
-        ElMessage.error(`批量上传出错: ${error.message}`);
-    } finally {
-        loading.close();
+    // 重置状态
+    batchFiles.value = [];
+    if (batchFileInput.value) {
+        batchFileInput.value.value = '';
     }
 }
 
@@ -293,6 +247,7 @@ watch(isBatchMode, (newVal) => {
 
 .upload-mode-toggle {
     margin-bottom: 15px;
+    margin-right: 12px;
     text-align: right;
 }
 

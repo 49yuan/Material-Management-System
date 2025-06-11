@@ -4,12 +4,16 @@
             <CategoryFilter :categories="categories" :active-category="activeCategory"
                 @category-change="handleCategoryChange" />
             <SearchBar v-model="searchQuery" @search="handleSearch" />
+            <!-- <button v-if="authStore.isAdmin" class="upload-button" @click="">
+                批量操作
+            </button> -->
             <button v-if="authStore.isAdmin" class="upload-button" @click="showUploadForm = true">
                 上传音频
             </button>
         </div>
 
-        <AudioUploadForm v-if="showUploadForm" @submit="handleUpload" @cancel="showUploadForm = false" />
+        <AudioUploadForm v-if="showUploadForm" @submit="handleUpload" @batch-submit="handleBatchUpload"
+            :categoryId="props.categoryId" @cancel="showUploadForm = false" />
 
         <div class="audio-grid">
             <AudioCard v-for="audio in paginatedAudios" :key="audio.id" :audio-url="audio.url" :audio-name="audio.name"
@@ -151,7 +155,59 @@ const handleUpload = async (formData) => {
         loading.close();
     }
 };
+const handleBatchUpload = async (files) => {
+    const loading = ElLoading.service({
+        lock: true,
+        text: `正在上传 ${files.length} 个音频，请稍候...`,
+        background: 'rgba(0, 0, 0, 0.7)'
+    });
 
+    try {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const file of files) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file.file);
+                formData.append('name', file.name);
+                formData.append('category_id', props.categoryId);
+                formData.append('type', 'music');
+
+                const response = await axios.post('/resource', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                if (response.data.code === 200) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    ElMessage.warning(`文件 ${file.name} 上传失败: ${response.data.msg}`);
+                }
+            } catch (error) {
+                failCount++;
+                const errorMsg = error.response?.data?.message || error.message;
+                ElMessage.warning(`文件 ${file.name} 上传出错: ${errorMsg}`);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        if (failCount === 0) {
+            ElMessage.success(`全部 ${successCount} 个音频上传成功！`);
+        } else {
+            ElMessage.warning(`上传完成，成功 ${successCount} 个，失败 ${failCount} 个`);
+        }
+
+        await fetchAudios(); // 刷新数据
+    } catch (error) {
+        ElMessage.error(`批量上传出错: ${error.message}`);
+    } finally {
+        loading.close();
+    }
+}
 // 编辑音频
 const handleEditAudio = async (id, newData) => {
     const loading = ElLoading.service({

@@ -13,7 +13,8 @@
             </div>
 
             <!-- 上传表单 -->
-            <TextUploadForm :showForm="showUploadForm" @submit="handleUpload" @cancel="showUploadForm = false" />
+            <TextUploadForm :showForm="showUploadForm" @submit="handleUpload" @batch-submit="handleBatchUpload"
+                @cancel="showUploadForm = false" />
 
             <!-- 文本表格 -->
             <div class="table-container">
@@ -238,7 +239,59 @@ const handleDownload = async (text) => {
         alert('下载失败');
     }
 };
+const handleBatchUpload = async (files) => {
+    const loading = ElLoading.service({
+        lock: true,
+        text: `正在上传 ${files.length} 篇文章，请稍候...`,
+        background: 'rgba(0, 0, 0, 0.7)'
+    });
 
+    try {
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const file of files) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file.file);
+                formData.append('name', file.name);
+                formData.append('category_id', props.categoryId);
+                formData.append('type', 'article');
+
+                const response = await axios.post('/resource', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                if (response.data.code === 200) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    ElMessage.warning(`文件 ${file.name} 上传失败: ${response.data.msg}`);
+                }
+            } catch (error) {
+                failCount++;
+                const errorMsg = error.response?.data?.message || error.message;
+                ElMessage.warning(`文件 ${file.name} 上传出错: ${errorMsg}`);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        if (failCount === 0) {
+            ElMessage.success(`全部 ${successCount} 篇文章上传成功！`);
+        } else {
+            ElMessage.warning(`上传完成，成功 ${successCount} 篇，失败 ${failCount} 篇`);
+        }
+
+        await fetchTexts(); // 刷新数据
+    } catch (error) {
+        ElMessage.error(`批量上传出错: ${error.message}`);
+    } finally {
+        loading.close();
+    }
+}
 // 编辑文本
 const handleEdit = (text) => {
     editTarget.value = { ...text };

@@ -2,13 +2,18 @@
     <div class="upload-form-overlay" v-if="showForm">
         <div class="upload-form">
             <div class="form-header">
-                <h3>上传文章</h3>
+                <h3>{{ isBatchMode ? '批量上传文章' : '上传文章' }}</h3>
                 <button class="close-btn" @click="closeForm">
                     <i class="icon-close">×</i>
                 </button>
             </div>
-
-            <form @submit.prevent="handleSubmit">
+            <div v-if="!isBatchMode" class="upload-mode-toggle">
+                <button @click="isBatchMode = true">切换到批量上传</button>
+            </div>
+            <div v-else class="upload-mode-toggle">
+                <button @click="isBatchMode = false">切换到单文件上传</button>
+            </div>
+            <form v-if="!isBatchMode" @submit.prevent="handleSubmit">
                 <div class="form-group">
                     <label>文章名称:</label>
                     <input type="text" v-model="articleName" placeholder="请输入文章名称" required />
@@ -51,6 +56,39 @@
                     </button>
                 </div>
             </form>
+            <div v-else>
+                <div class="batch-page">
+                    <div class="form-group">
+                        <label>选择多篇文章:</label>
+                        <input type="file" ref="batchFileInput" accept=".txt,.doc,.docx,.pdf,.md" multiple
+                            @change="handleBatchFileChange" required />
+                    </div>
+
+                    <div class="batch-preview" v-if="batchFiles.length > 0">
+                        <h4>已选择 {{ batchFiles.length }} 篇文章</h4>
+                        <div class="file-list">
+                            <div v-for="(file, index) in paginatedFiles" :key="index" class="file-item">
+                                <div class="file-info">
+                                    <div class="file-name">{{ file.name }}</div>
+                                    <div class="file-size">{{ formatFileSize(file.size) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button @click="prevPage" :disabled="currentPage === 1">上一页</button>
+                            <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
+                            <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" @click="handleBatchSubmit" :disabled="batchFiles.length === 0">
+                            上传全部
+                        </button>
+                        <button type="button" @click="$emit('cancel')">取消</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -71,10 +109,37 @@ const articleName = ref('');
 const tags = ref('');
 const file = ref(null);
 const fileInput = ref(null);
+// 批量上传相关状态
+const isBatchMode = ref(false)
+const batchFileInput = ref(null)
+const batchFiles = ref([])
+const currentPage = ref(1)
+const itemsPerPage = 6 // 每页显示6个文件
 
 const isValid = computed(() => {
     return articleName.value.trim() && file.value;
 });
+// 分页计算属性
+const totalPages = computed(() => {
+    return Math.ceil(batchFiles.value.length / itemsPerPage)
+})
+
+const paginatedFiles = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage
+    const end = start + itemsPerPage
+    return batchFiles.value.slice(start, end)
+})
+
+// 获取文件图标类名
+const getFileIconClass = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase()
+    return `file-icon-${ext}`
+}
+
+// 获取文件扩展名
+const getFileExtension = (filename) => {
+    return filename.split('.').pop().toUpperCase()
+}
 
 const triggerFileInput = () => {
     fileInput.value.click();
@@ -138,7 +203,54 @@ const resetForm = () => {
         fileInput.value.value = '';
     }
 };
+const handleBatchFileChange = (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
 
+    batchFiles.value = files.map(file => ({
+        file,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        size: file.size,
+        extension: file.name.split('.').pop().toLowerCase()
+    }))
+
+    currentPage.value = 1
+}
+
+const prevPage = () => {
+    if (currentPage.value > 1) {
+        currentPage.value--
+    }
+}
+
+const nextPage = () => {
+    if (currentPage.value < totalPages.value) {
+        currentPage.value++
+    }
+}
+
+const handleBatchSubmit = () => {
+    if (batchFiles.value.length === 0) {
+        ElMessage.warning('请先选择要上传的文章文件')
+        return
+    }
+
+    emit('batch-submit', batchFiles.value.map(item => ({
+        file: item.file,
+        name: item.name,
+        category_id: props.categoryId,
+        type: 'article'
+    })))
+
+    // 重置状态
+    resetBatchForm()
+}
+const resetBatchForm = () => {
+    batchFiles.value = []
+    if (batchFileInput.value) {
+        batchFileInput.value.value = ''
+    }
+}
 watch(() => props.showForm, (newVal) => {
     if (!newVal) {
         resetForm();
@@ -191,11 +303,28 @@ watch(() => props.showForm, (newVal) => {
     padding: 0;
 }
 
+.upload-mode-toggle {
+    margin-bottom: 15px;
+    text-align: right;
+}
+
+.upload-mode-toggle button {
+    background: #f0f0f0;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    margin-right: 20px;
+}
+
+
 form {
-    padding: 24px;
+    padding-right: 20px;
 }
 
 .form-group {
+    margin-left: 20px;
     margin-bottom: 20px;
 }
 
@@ -306,12 +435,12 @@ form {
     padding: 4px;
 }
 
-.form-actions {
+/* .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
     margin-top: 24px;
-}
+} */
 
 .submit-btn,
 .cancel-btn {
@@ -346,5 +475,126 @@ form {
 .cancel-btn:hover {
     color: #1890ff;
     border-color: #1890ff;
+}
+
+.batch-preview {
+    margin: 20px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.pagination-controls button {
+    padding: 5px 10px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.file-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.file-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin-right: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+}
+
+.file-icon-txt {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.file-icon-doc,
+.file-icon-docx {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.file-icon-pdf {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.file-icon-md {
+    background-color: #f3e5f5;
+    color: #6a1b9a;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #888;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.batch-page .form-actions {
+    margin-right: 20px;
+}
+
+.form-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.form-actions button:first-child {
+    background: #42b983;
+    color: white;
+}
+
+.form-actions button:last-child {
+    background: #f0f0f0;
 }
 </style>

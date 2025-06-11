@@ -1,8 +1,14 @@
 <template>
     <div class="upload-form-overlay">
         <div class="upload-form">
-            <h3>上传视频</h3>
-            <form @submit.prevent="handleSubmit">
+            <h3>{{ isBatchMode ? '批量上传视频' : '上传视频' }}</h3>
+            <div v-if="!isBatchMode" class="upload-mode-toggle">
+                <button @click="isBatchMode = true">切换到批量上传</button>
+            </div>
+            <div v-else class="upload-mode-toggle">
+                <button @click="isBatchMode = false">切换到单文件上传</button>
+            </div>
+            <form v-if="!isBatchMode" @submit.prevent="handleSubmit">
                 <div class="form-group">
                     <label>视频名称:</label>
                     <input type="text" v-model="imageName" placeholder="例如: 夏日风景" required />
@@ -23,6 +29,39 @@
                     <button type="button" @click="$emit('cancel')">取消</button>
                 </div>
             </form>
+            <div v-else>
+                <div class="batch-page">
+                    <div class="form-group">
+                        <label>选择多个视频:</label>
+                        <input type="file" ref="batchFileInput" accept="video/*" multiple @change="handleBatchFileChange"
+                            required />
+                    </div>
+
+                    <div class="batch-preview" v-if="batchFiles.length > 0">
+                        <h4>已选择 {{ batchFiles.length }} 个视频</h4>
+                        <div class="file-list">
+                            <div v-for="(file, index) in paginatedFiles" :key="index" class="file-item">
+                                <div class="file-info">
+                                    <div class="file-name">{{ file.name }}</div>
+                                    <div class="file-size">{{ formatFileSize(file.size) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pagination-controls">
+                            <button @click="prevPage" :disabled="currentPage === 1">上一页</button>
+                            <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
+                            <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" @click="handleBatchSubmit" :disabled="batchFiles.length === 0">
+                            上传全部
+                        </button>
+                        <button type="button" @click="$emit('cancel')">取消</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -31,15 +70,37 @@
 import { ref, computed } from 'vue'
 
 const emit = defineEmits(['submit', 'cancel'])
+const props = defineProps({
+    categoryId: {
+        type: [String, Number],
+        required: true
+    }
+})
 
 const imageName = ref('')  // 新增名称字段
 const tags = ref('')
 const file = ref(null)
 const fileInput = ref(null)
+// 批量上传相关状态
+const isBatchMode = ref(false)
+const batchFileInput = ref(null)
+const batchFiles = ref([])
+const currentPage = ref(1)
+const itemsPerPage = 6 // 每页显示6个文件
 
 const isValid = computed(() => {
     return imageName.value.trim() && file.value;
 });
+// 分页计算属性
+const totalPages = computed(() => {
+    return Math.ceil(batchFiles.value.length / itemsPerPage)
+})
+
+const paginatedFiles = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage
+    const end = start + itemsPerPage
+    return batchFiles.value.slice(start, end)
+})
 
 const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
@@ -51,7 +112,13 @@ const handleFileChange = (e) => {
         imageName.value = rawName
     }
 }
-
+const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 const handleSubmit = () => {
     const formData = new FormData()
     formData.append('name', imageName.value)  // 添加名称
@@ -68,6 +135,54 @@ const handleSubmit = () => {
         fileInput.value.value = ''
     }
 }
+const handleBatchFileChange = (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+
+    batchFiles.value = files.map(file => ({
+        file,
+        name: file.name.replace(/\.[^/.]+$/, ''),
+        size: file.size,
+        extension: file.name.split('.').pop().toLowerCase()
+    }))
+
+    currentPage.value = 1
+}
+
+const prevPage = () => {
+    if (currentPage.value > 1) {
+        currentPage.value--
+    }
+}
+
+const nextPage = () => {
+    if (currentPage.value < totalPages.value) {
+        currentPage.value++
+    }
+}
+
+const handleBatchSubmit = () => {
+    if (batchFiles.value.length === 0) {
+        ElMessage.warning('请先选择要上传的视频文件')
+        return
+    }
+
+    emit('batch-submit', batchFiles.value.map(item => ({
+        file: item.file,
+        name: item.name,
+        category_id: props.categoryId,
+        type: 'video'
+    })))
+
+    // 重置状态
+    resetBatchForm()
+}
+const resetBatchForm = () => {
+    batchFiles.value = []
+    if (batchFileInput.value) {
+        batchFileInput.value.value = ''
+    }
+}
 </script>
 
 <style scoped>
@@ -82,6 +197,20 @@ const handleSubmit = () => {
     justify-content: center;
     align-items: center;
     z-index: 1000;
+}
+
+.upload-mode-toggle {
+    margin-bottom: 15px;
+    text-align: right;
+}
+
+.upload-mode-toggle button {
+    background: #f0f0f0;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
 }
 
 .upload-form {
@@ -115,6 +244,10 @@ const handleSubmit = () => {
     margin-top: 20px;
 }
 
+.batch-page .form-actions {
+    margin-right: 20px;
+}
+
 .form-actions button {
     padding: 8px 16px;
     border: none;
@@ -129,5 +262,64 @@ const handleSubmit = () => {
 
 .form-actions button:last-child {
     background: #f0f0f0;
+}
+
+.batch-preview {
+    margin: 20px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin: 15px 0;
+}
+
+.pagination-controls button {
+    padding: 5px 10px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.file-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #888;
 }
 </style>
