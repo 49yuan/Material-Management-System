@@ -27,10 +27,8 @@ const staticRoutes = [
   }
 ]
 
-const base = process.env.NODE_ENV === 'production' ? '/material-system/' : '/';
-
 const router = createRouter({
-  history: createWebHistory(base),
+  history: createWebHistory(),
   routes: staticRoutes
 })
 const CategoryLayout = () => import('@/views/CategoryLayout.vue')
