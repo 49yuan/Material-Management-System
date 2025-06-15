@@ -7,20 +7,54 @@
                 <CategoryFilter :categories="categories" :active-category="activeCategory"
                     @category-change="handleCategoryChange" />
                 <SearchBar v-model="searchQuery" @search="handleSearch" />
-                <button v-if="authStore.isAdmin" class="upload-button" @click="showUploadForm = true">
-                    <i class="icon-upload"></i> 上传文本
-                </button>
+                <div v-if="batchMode" class="batch-actions">
+                    <button class="batch-button" @click="handleBatchDelete" :disabled="selectedTexts.size === 0">
+                        批量删除 ({{ selectedTexts.size }})
+                    </button>
+                    <button class="batch-button" @click="openMoveDialog" :disabled="selectedTexts.size === 0">
+                        批量移动 ({{ selectedTexts.size }})
+                    </button>
+                    <button class="batch-button cancel" @click="exitBatchMode">
+                        取消
+                    </button>
+                </div>
+                <div v-else class="normal-actions">
+                    <button v-if="authStore.isAdmin" class="upload-button" @click="enterBatchMode">
+                        批量操作
+                    </button>
+                    <button v-if="authStore.isAdmin" class="upload-button" @click="showUploadForm = true">
+                        上传文本
+                    </button>
+                </div>
             </div>
 
             <!-- 上传表单 -->
             <TextUploadForm :showForm="showUploadForm" @submit="handleUpload" @batch-submit="handleBatchUpload"
                 @cancel="showUploadForm = false" />
-
+            <!-- 添加批量移动对话框 -->
+            <el-dialog v-model="showMoveDialog" title="批量移动文本" width="30%" align-center>
+                <el-select v-model="moveTargetCategory" placeholder="选择目标分类" style="width: 100%" filterable clearable>
+                    <el-option v-for="category in availableCategories" :key="category.id" :label="category.name"
+                        :value="category.id" :disabled="category.id === props.categoryId" />
+                </el-select>
+                <template #footer>
+                    <span class="dialog-footer">
+                        <el-button @click="showMoveDialog = false">取消</el-button>
+                        <el-button type="primary" @click="confirmBatchMove"
+                            :disabled="!moveTargetCategory || moveTargetCategory === props.categoryId">
+                            确认移动
+                        </el-button>
+                    </span>
+                </template>
+            </el-dialog>
             <!-- 文本表格 -->
             <div class="table-container">
                 <table class="text-table">
                     <thead>
                         <tr>
+                            <th v-if="batchMode" style="width: 30px;">
+                                <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected">
+                            </th>
                             <th style="width: 50%;">篇名</th>
                             <th style="width: 12.5%;">标签</th>
                             <th style="width: 37.5%;">操作</th>
@@ -28,6 +62,9 @@
                     </thead>
                     <tbody>
                         <tr v-for="text in paginatedTexts" :key="text.id">
+                            <td v-if="batchMode">
+                                <input type="checkbox" v-model="selectedTexts" :value="text.id">
+                            </td>
                             <td>{{ text.name }}</td>
                             <td>
                                 <div class="tags">
@@ -39,15 +76,14 @@
                             <td>
                                 <div class="actions">
                                     <button class="download-btn" @click="handleDownload(text)">
-                                        <!-- <i class="icon-download"></i>  -->
                                         下载
                                     </button>
-                                    <button v-if="authStore.isAdmin" class="edit-btn" @click="handleEdit(text)">
-                                        <!-- <i class="icon-edit"></i>  -->
+                                    <button v-if="authStore.isAdmin && !batchMode" class="edit-btn"
+                                        @click="handleEdit(text)">
                                         编辑
                                     </button>
-                                    <button v-if="authStore.isAdmin" class="delete-btn" @click="showDeleteConfirm(text)">
-                                        <!-- <i class="icon-delete"></i>  -->
+                                    <button v-if="authStore.isAdmin && !batchMode" class="delete-btn"
+                                        @click="showDeleteConfirm(text)">
                                         删除
                                     </button>
                                 </div>
@@ -79,7 +115,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { ElLoading, ElMessage } from 'element-plus';
+import { ElLoading, ElMessage, ElMessageBox } from 'element-plus';
 import axios from 'axios';
 import TextUploadForm from '@/components/materials/TextUploadForm.vue';
 import TextEditForm from '@/components/materials/TextEditForm.vue';
@@ -355,6 +391,160 @@ const handleDeleteConfirm = async () => {
         loading.close();
     }
 };
+// 添加批量操作相关状态
+const batchMode = ref(false);
+const selectedTexts = ref(new Set());
+const showMoveDialog = ref(false);
+const moveTargetCategory = ref('');
+const availableCategories = ref([]);
+
+// 计算属性 - 添加全选状态
+const isAllSelected = computed(() => {
+    if (paginatedTexts.value.length === 0) return false;
+    return paginatedTexts.value.every(text => selectedTexts.value.has(text.id));
+});
+
+// 批量操作相关方法
+const enterBatchMode = () => {
+    batchMode.value = true;
+    selectedTexts.value = new Set();
+};
+
+const exitBatchMode = () => {
+    batchMode.value = false;
+    selectedTexts.value = new Set();
+};
+
+const toggleSelectAll = (event) => {
+    if (event.target.checked) {
+        paginatedTexts.value.forEach(text => selectedTexts.value.add(text.id));
+    } else {
+        paginatedTexts.value.forEach(text => selectedTexts.value.delete(text.id));
+    }
+};
+
+// 批量删除方法
+const handleBatchDelete = async () => {
+    try {
+        await ElMessageBox.confirm(`确定要删除选中的 ${selectedTexts.value.size}篇文章吗?`, '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+        });
+
+        const loading = ElLoading.service({
+            lock: true,
+            text: `正在批量删除 ${selectedTexts.value.size} 篇文章...`,
+            background: 'rgba(0, 0, 0, 0.7)'
+        });
+
+        try {
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const id of selectedTexts.value) {
+                try {
+                    const response = await axios.delete(`/resource/${id}`);
+                    if (response.data.code === 200) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                        ElMessage.warning(`文章 ${id} 删除失败: ${response.data.msg}`);
+                    }
+                } catch (error) {
+                    failCount++;
+                    ElMessage.warning(`文章 ${id} 删除出错: ${error.message}`);
+                }
+            }
+
+            if (failCount === 0) {
+                ElMessage.success(`成功删除 ${successCount} 篇文章`);
+            } else {
+                ElMessage.warning(`删除完成，成功 ${successCount} 篇，失败 ${failCount} 篇`);
+            }
+
+            await fetchTexts();
+            exitBatchMode();
+        } finally {
+            loading.close();
+        }
+    } catch (error) {
+        if (error !== 'cancel') {
+            ElMessage.error(`批量删除失败: ${error.message}`);
+        }
+    }
+};
+
+// 获取分类列表
+const fetchCategories = async () => {
+    try {
+        const response = await axios.get('/category');
+        if (response.data?.code === 200) {
+            availableCategories.value = response.data.data;
+            // 设置默认值（当前分类）
+            moveTargetCategory.value = props.categoryId;
+        } else {
+            console.error('获取分类失败:', response.data?.msg);
+            ElMessage.error('获取分类列表失败');
+        }
+    } catch (error) {
+        console.error('获取分类失败:', error);
+        ElMessage.error('获取分类列表失败');
+    }
+};
+
+// 打开移动对话框时获取分类
+const openMoveDialog = () => {
+    fetchCategories();
+    showMoveDialog.value = true;
+};
+
+// 批量移动确认
+const confirmBatchMove = async () => {
+    try {
+        await ElMessageBox.confirm(
+            `确定要将选中的 ${selectedTexts.value.size} 篇文章移动到 ${availableCategories.value.find(c => c.id === moveTargetCategory.value)?.name || '目标分类'} 吗?`,
+            '提示',
+            {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'warning'
+            }
+        );
+
+        const loading = ElLoading.service({
+            lock: true,
+            text: `正在批量移动 ${selectedTexts.value.size} 篇文章...`,
+            background: 'rgba(0, 0, 0, 0.7)'
+        });
+
+        try {
+            const response = await axios.put('/resource/move', {
+                ids: Array.from(selectedTexts.value), // 将 Set 转换为数组
+                new_category_id: moveTargetCategory.value,
+            });
+
+            if (response.data.code === 200) {
+                ElMessage.success(`成功移动 ${selectedTexts.value.size} 篇文章`);
+            } else {
+                ElMessage.error(`移动失败: ${response.data.msg}`);
+            }
+
+            await fetchTexts();
+            showMoveDialog.value = false;
+            exitBatchMode();
+        } catch (error) {
+            const errorMsg = error.response?.data?.message || error.message;
+            ElMessage.error(`移动出错: ${errorMsg}`);
+        } finally {
+            loading.close();
+        }
+    } catch (error) {
+        if (error !== 'cancel') {
+            ElMessage.error(`批量移动失败: ${error.message}`);
+        }
+    }
+};
 watch(() => props.categoryId, async () => {
     await fetchTexts();
     // 重置分页和筛选状态
@@ -386,18 +576,6 @@ onMounted(fetchTexts);
     align-items: center;
     margin-bottom: 20px;
     gap: 15px;
-}
-
-.upload-button {
-    padding: 8px 16px;
-    background: #42b983;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
 }
 
 .table-container {
@@ -498,5 +676,48 @@ onMounted(fetchTexts);
 .icon-edit,
 .icon-delete {
     font-size: 14px;
+}
+
+.upload-button {
+    padding: 8px 16px;
+    background: #42b983;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.batch-actions {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.batch-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.batch-button:not(.cancel) {
+    background: #f56c6c;
+    color: white;
+}
+
+.batch-button.cancel {
+    background: #f0f0f0;
+}
+
+.batch-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.normal-actions {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
 }
 </style>
